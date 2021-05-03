@@ -306,26 +306,21 @@ class Alpha(ReflexCaptureAgent):
             features['distanceToFood'] = minDistance
             # distance to nearest enemy
 
-        enemyDistance = 100001
+        enemyDistance = 100000
         enemies = self.getOpponents(gameState)
         enemyStates = [successor.getAgentState(e) for e in enemies]
         enemies_position = [self.getMazeDistance(a.getPosition(), currPosition)
                             for a in enemyStates if not a.isPacman and a.scaredTimer == 0 and a.getPosition() != None]
 
         enemyDistance = min(enemies_position) if len(enemies_position) > 0 else 100000
-        enemyDistance = 100003 if enemyDistance > 5 else enemyDistance
-        enemyDistance = 100002 if enemyDistance > 2 and not (
+        enemyDistance = 100000 if enemyDistance > 5 else enemyDistance
+        enemyDistance = 100000 if enemyDistance > 2 and not (
                     gameState.getAgentState(self.index).isPacman or successor.getAgentState(
                 self.index).isPacman) else enemyDistance
         # print(enemyDistance)
         features['distanceToEnemy'] = enemyDistance
         features['foodEaten'] = 0
-        power = False
-        capsules = self.getCapsules(gameState)
-        distToCapsule = self.getMazeDistance(capsules[0], currPosition) if len(capsules) > 0 else 100009
-        if enemyDistance < 100000 and distToCapsule <= enemyDistance:
-            power = True
-            # print("Power Pellet")
+
 
         self.shouldReturn = False
         if self.goal != None or (gameState.getAgentState(self.index).numCarrying >= 1):
@@ -343,6 +338,14 @@ class Alpha(ReflexCaptureAgent):
         upper_y = int(0.80 * gameState.data.layout.height)
         small = 100000
         entry = None
+
+
+        power = False
+        capsules = self.getCapsules(gameState)
+        distToCapsule = self.getMazeDistance(capsules[0], currPosition) if len(capsules) > 0 else 100009
+        if enemyDistance < 100000 and distToCapsule <= smallBorderDistance:
+            power = True
+            # print("Power Pellet")
 
         for borderpoint in self.border:
             if abs(borderpoint[1] - upper_y) < small:
@@ -437,16 +440,24 @@ class Beta(ReflexCaptureAgent):
         lower_y = int(0.20 * gameState.data.layout.height)
         small = 100000
         entry = None
+
+        self.power = False
+        capsules = self.getCapsules(gameState)
+        distToCapsule = self.getMazeDistance(capsules[0], currPosition) if len(capsules) > 0 else 100009
+        if enemyDistance != 0 and distToCapsule <= smallBorderDistance:
+            self.power = True
+            print("Power Pellet")
+
         for borderpoint in self.border:
             if abs(borderpoint[1] - lower_y) < small:
                 small = abs(borderpoint[1] - lower_y)
                 entry = (borderpoint[0], borderpoint[1])
         needsToEnter = currPosition[0] < entry[0] if self.red else currPosition[0] > entry[0]
         features['lower'] = self.getMazeDistance(currPosition, entry) if needsToEnter else 0
-        features['borderDistance'] = smallBorderDistance
+        features['borderDistance'] = smallBorderDistance if not self.power else distToCapsule
         return features
 
     def getWeights(self, gameState, action):
         borderWeight = gameState.getAgentState(self.index).numCarrying * -10
-        return {'successorScore': 10, 'distanceToFood': -3, 'distanceToEnemy': 100, 'foodEaten': 100,
-                'borderDistance': borderWeight if self.shouldReturn else 0, 'lower': -50}
+        return {'successorScore': 10, 'distanceToFood': -3, 'distanceToEnemy': 115 if not self.power else 50, 'foodEaten': 100,
+                'borderDistance': -75 if self.shouldReturn else 0, 'lower': -50}
