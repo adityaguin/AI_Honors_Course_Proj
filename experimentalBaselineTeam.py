@@ -446,7 +446,7 @@ class Beta(ReflexCaptureAgent):
         distToCapsule = self.getMazeDistance(capsules[0], currPosition) if len(capsules) > 0 else 100009
         if enemyDistance != 0 and distToCapsule <= smallBorderDistance:
             self.power = True
-            print("Power Pellet")
+            #print("Power Pellet")
 
         for borderpoint in self.border:
             if abs(borderpoint[1] - lower_y) < small:
