@@ -88,7 +88,7 @@ class ReflexCaptureAgent(CaptureAgent):
       self.teamMate = teamIndices[0]
     else:
       self.teamMate = teamIndices[1]
-    self.power = False
+    self.power = 0
     self.prevCapsules = []
 
   def randomAction(self, statecpy):
@@ -259,8 +259,8 @@ class ReflexCaptureAgent(CaptureAgent):
     """
     features = self.getFeatures(gameState, action)
     weights = self.getWeights(gameState, action)
-    # if self.isAlpha is True:
-    #     print("{} * {} == {}".format(features, weights, features * weights))
+    if self.isAlpha is True:
+        print("{} * {} == {}".format(features, weights, features * weights))
     return features * weights
 
   def getFeatures(self, gameState, action):
@@ -304,6 +304,7 @@ class Alpha(ReflexCaptureAgent):
     self.goal = None
     self.isAlpha = True
     self.shouldReturn = False
+    self.foodThreshhold = 4
 
 
   def getBestAction(self, gameState):
@@ -335,8 +336,8 @@ class Alpha(ReflexCaptureAgent):
                         for a in enemyStates if not a.isPacman and a.scaredTimer == 0 and a.getPosition() != None]
 
     scared_position = [a.scaredTimer for a in enemyStates if not a.isPacman and a.scaredTimer != 0 and a.getPosition() != None]
-    if len(scared_position) > 0:
-      print(scared_position[0])
+    # if len(scared_position) > 0:
+    #   print(scared_position[0])
 
     enemyDistance = min(enemies_position) if len(enemies_position) > 0 else 100000
     enemyDistance = 100000 if enemyDistance > 5 else enemyDistance
@@ -346,16 +347,26 @@ class Alpha(ReflexCaptureAgent):
     # print(enemyDistance)
     features['distanceToEnemy'] = enemyDistance
     features['foodEaten'] = 0
-
+    scaredTimers = [a.scaredTimer for a in enemyStates]
     # print("Self.scared time is {}".format(gameState.getAgentState(self.index).scaredTimer))
-
+    # power = False
+    capsules = self.getCapsules(gameState)
+    # Gets power pellet
+    self.power = scaredTimers[0] if scaredTimers[0] != 0 and scaredTimers[1] != 0 else 0
+    self.prevCapsules = capsules
+    # Check if both agents are scared, set timer equal to their scared timer
     self.shouldReturn = False
-    if enemyDistance >= 100000 and (gameState.getAgentState(self.index).numCarrying < 4):
+    if self.power > 0:
+      self.foodThreshhold += gameState.getAgentState(self.index).numCarrying
+    if gameState.getAgentState(self.index).numCarrying == 0:
+      self.foodThreshhold = 4
+    # if power == true, make self.power == 7, and if self.power == 7, then numcarrying
+    if enemyDistance >= 100000 and (gameState.getAgentState(self.index).numCarrying < 4) or self.power > 0:
       self.shouldReturn = False
     elif (gameState.getAgentState(self.index).numCarrying >= 1):
       self.shouldReturn = True
-    if self.goal != None:
-      self.shouldReturn = True
+    # if self.goal != None:
+    #   self.shouldReturn = True
 
     # if self.
     self.prevAttackFood = self.getFood(gameState).asList()
@@ -365,32 +376,34 @@ class Alpha(ReflexCaptureAgent):
       features['foodEaten'] = 1
     smallBorderDistance = min([self.getMazeDistance(currPosition, borderPoint) for borderPoint in self.border])# \
     #     if gameState.getAgentState(self.index).numCarrying >= 1 or enemyDistance <= 5 else 0
-
     upper_y = int(0.80 * gameState.data.layout.height)
     small = 100000
     entry = None
-
-
     power = False
+    self.goForPower = False
 
-    capsules = self.getCapsules(gameState)
-    if len(capsules) < len(self.prevCapsules):
-      self.power = 39*4
-    self.prevCapsules = capsules
+    pelletDist = [self.getMazeDistance(currPosition, c) for c in capsules
+                   if self.getMazeDistance(currPosition, c) <= self.getMazeDistance(gameState.getAgentPosition(self.teamMate), c)]
+    distToCapsule = min(pelletDist)\
+      if (len(capsules) > 0 and len(pelletDist) > 0) else 100009
 
-
-    distToCapsule = min([self.getMazeDistance(currPosition, c) for c in capsules]) if len(capsules) > 0 else 100009
-    if enemyDistance < 100000 and distToCapsule <= smallBorderDistance:
-      power = True
+    if (enemyDistance != 100000 and distToCapsule <= smallBorderDistance) or (enemyDistance == 100000):
+      if distToCapsule < 100009:
+        self.goForPower = True
       # print("Power Pellet")
-
+    # self.power -= 1 # Decrementing  regardless
+    # Just to be safe here
+    if self.power <= smallBorderDistance + 4 and self.power > 0:
+      self.shouldReturn = True
     for borderpoint in self.border:
       if abs(borderpoint[1] - upper_y) < small:
         small = abs(borderpoint[1] - upper_y)
         entry = (borderpoint[0], borderpoint[1])
-    needsToEnter = currPosition[0] <= entry[0] if self.red else currPosition[0] >= entry[0]
+    prevPosition = gameState.getAgentPosition(self.index)
+    needsToEnter = prevPosition[0] <= entry[0] if self.red else prevPosition[0] >= entry[0]
     features['upper'] = self.getMazeDistance(currPosition, entry) if needsToEnter else 0
-    features['borderDistance'] = smallBorderDistance if not power else distToCapsule
+    features['borderDistance'] = smallBorderDistance
+    features['powerPelletDistance'] = distToCapsule
     return features
 
   def getWeights(self, gameState, action):
@@ -398,8 +411,8 @@ class Alpha(ReflexCaptureAgent):
     # enemyWeight = 215 if not self.capsulePower else
     successor = gameState.generateSuccessor(self.index, action)
     # if successor.getAfe
-    return {'successorScore': 10, 'distanceToFood': -8, 'distanceToEnemy': 350, 'foodEaten': 250,
-            'borderDistance': -350 if self.shouldReturn else 0, 'upper': -10}
+    return {'successorScore': 10, 'distanceToFood': -8, 'distanceToEnemy': 400, 'foodEaten': 250,
+            'borderDistance': -350 if self.shouldReturn else 0, 'upper': -250, 'powerPelletDistance': -200 if self.goForPower else 0}
 
 # Prioritize vertical movement over horizontal
 
@@ -437,7 +450,7 @@ class Beta(ReflexCaptureAgent):
     features = util.Counter()
     successor = self.getSuccessor(gameState, action)
     foodList = self.getFood(successor).asList()
-    features['successorScore'] = -len(foodList)  # self.getScore(successor)
+    features['successorScore'] = self.getScore(successor)  # self.getScore(successor)
 
     # Compute distance to the nearest food
     currPosition = successor.getAgentPosition(self.index)
@@ -455,7 +468,7 @@ class Beta(ReflexCaptureAgent):
 
     enemyDistance = min(enemies_position) if len(enemies_position) > 0 else 100000
     enemyDistance = 0 if enemyDistance > 5 else enemyDistance
-    enemyDistance = 100000 if enemyDistance > 2 and not (
+    enemyDistance = 0 if (enemyDistance > 3 or enemyDistance == 0) and not (
             gameState.getAgentState(self.index).isPacman or successor.getAgentState(
       self.index).isPacman) else enemyDistance
     # print(enemyDistance)
@@ -463,6 +476,8 @@ class Beta(ReflexCaptureAgent):
     features['foodEaten'] = 0
     self.prevAttackFood = self.getFood(gameState).asList()
     currFood = self.getFood(successor).asList()
+    # scaredTimers = [a.scaredTimer for a in enemyStates]
+    # self.power = scaredTimers[0] if scaredTimers[0] != 0 and scaredTimers[1] != 0 else 0
     if len(self.prevAttackFood) > len(currFood):
       self.numFoodEaten += 1
       features['foodEaten'] = 1
@@ -471,8 +486,8 @@ class Beta(ReflexCaptureAgent):
       self.shouldReturn = False
     elif (gameState.getAgentState(self.index).numCarrying >= 1):
       self.shouldReturn = True
-    if self.goal != None:
-      self.shouldReturn = True
+    # if self.goal != None:
+    #   self.shouldReturn = True
 
 
     # smallBorderDistance = min([self.getMazeDistance(currPosition, borderPoint) for borderPoint in self.border])
@@ -482,27 +497,31 @@ class Beta(ReflexCaptureAgent):
     small = 100000
     entry = None
 
-    self.power = False
+    self.goForPower = False
     # Get the CLOSEST capsule to go for
     capsules = self.getCapsules(gameState)
     distToCapsule = min([self.getMazeDistance(currPosition, c) for c in capsules]) if len(capsules) > 0 else 100009
     # for cap in capsules:
     #   distToCapsule = self.getMazeDistance(capsules[0], currPosition) if len(capsules) > 0 else 100009
     # distToCapsule = self.getMazeDistance(capsules[0], currPosition) if len(capsules) > 0 else 100009
-    if enemyDistance != 0 and distToCapsule <= smallBorderDistance:
-      self.power = True
+    if (enemyDistance != 0 and distToCapsule <= smallBorderDistance) or (enemyDistance == 0):
+      if distToCapsule < 100009:
+        self.goForPower = True
+        # self.shouldReturn = True
       #print("Power Pellet")
 
     for borderpoint in self.border:
       if abs(borderpoint[1] - lower_y) < small:
         small = abs(borderpoint[1] - lower_y)
         entry = (borderpoint[0], borderpoint[1])
-    needsToEnter = currPosition[0] <= entry[0] if self.red else currPosition[0] >= entry[0]
+    prevPosition = gameState.getAgentPosition(self.index)
+    needsToEnter = prevPosition[0] <= entry[0] if self.red else prevPosition[0] >= entry[0]
     features['lower'] = self.getMazeDistance(currPosition, entry) if needsToEnter else 0
-    features['borderDistance'] = smallBorderDistance if not self.power else distToCapsule
+    features['borderDistance'] = smallBorderDistance
+    features['powerPelletDistance'] = distToCapsule
     return features
 
   def getWeights(self, gameState, action):
     borderWeight = gameState.getAgentState(self.index).numCarrying * -10
-    return {'successorScore': 10, 'distanceToFood': -3, 'distanceToEnemy': 115 if not self.power else 50, 'foodEaten': 100,
-            'borderDistance': -100 if self.shouldReturn else 0, 'lower': -50}
+    return {'successorScore': 10, 'distanceToFood': -3, 'distanceToEnemy': 230, 'foodEaten': 100,
+            'borderDistance': -100 if self.shouldReturn else 0, 'lower': -101, 'powerPelletDistance': -100 if self.goForPower else 0}
