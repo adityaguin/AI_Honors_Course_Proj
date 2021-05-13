@@ -198,7 +198,23 @@ class ReflexCaptureAgent(CaptureAgent):
         for idx, action in enumerate(avail_actions):
           if move_quality[idx] == best_quality:
             best_actions.append(action)
+
         return random.choice(best_actions)
+
+      if enemyDistance < 5:
+        rem_actions = []
+        if len(actions) > 1:
+          for ac in actions:
+            # Check the successor
+            successor = gameState.generateSuccessor(self.index, ac)
+            succActions = successor.getLegalActions(self.index)
+            succActions.remove(Directions.STOP)
+            if len(succActions) == 1:
+              rem_actions.append(ac)
+          for ac in rem_actions:
+            if len(actions) > 1:
+              actions.remove(ac)
+
 
 
 
