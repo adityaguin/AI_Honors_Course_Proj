@@ -159,7 +159,7 @@ class ReflexCaptureAgent(CaptureAgent):
     scaredTimers = [a.scaredTimer for a in enemyStates]
     if (self.goal == None or gameState.getAgentState(self.index).isPacman):
       capsules = self.getCapsules(gameState)
-      if len(capsules) > 0 and enemyDistance >= 5 and gameState.getAgentState(self.index).isPacman:
+      if len(capsules) > 0 and enemyDistance > 7 and gameState.getAgentState(self.index).isPacman:
         # Gets power pellet
         self.power = scaredTimers[0] if scaredTimers[0] != 0 and scaredTimers[1] != 0 else 0
         self.prevCapsules = capsules
@@ -211,6 +211,29 @@ class ReflexCaptureAgent(CaptureAgent):
             succActions.remove(Directions.STOP)
             if len(succActions) == 1:
               rem_actions.append(ac)
+            elif len(succActions) == 2 and Directions.REVERSE[ac] in succActions:
+              action2 = succActions[1]
+              succActions.remove(Directions.REVERSE[ac])
+              repAction = succActions[0]
+              nextSuccessor = successor
+              nextActions = succActions
+              for i in range(0, 5):
+                nextSuccessor = nextSuccessor.generateSuccessor(self.index, repAction)
+                nextActions = nextSuccessor.getLegalActions(self.index)
+                nextActions.remove(Directions.STOP)
+                if len(nextActions) > 2:
+                  # print(">2")
+                  break
+                elif repAction not in nextActions:
+                  # print("repAction: {}".format(repAction))
+                  break
+                if len(nextActions) == 1:
+                  rem_actions.append(ac)
+                  # print("ac: {}".format(ac))
+                  break
+
+
+
           for ac in rem_actions:
             if len(actions) > 1:
               actions.remove(ac)
@@ -328,9 +351,9 @@ class ReflexCaptureAgent(CaptureAgent):
     """
     features = self.getFeatures(gameState, action)
     weights = self.getWeights(gameState, action)
-    if self.isAlpha is False:
-        print("{} * \n {} == {}".format(features, weights, features * weights))
-        print("Direction: {}".format(action))
+    # if self.isAlpha is False:
+    #     print("{} * \n {} == {}".format(features, weights, features * weights))
+    #     print("Direction: {}".format(action))
     return features * weights
 
   def getFeatures(self, gameState, action):
@@ -454,10 +477,10 @@ class Alpha(ReflexCaptureAgent):
     power = False
     self.goForPower = False
 
-    # pelletDist = [self.getMazeDistance(currPosition, c) for c in capsules
-    #               if self.getMazeDistance(currPosition, c) <= self.getMazeDistance(gameState.getAgentPosition(self.teamMate), c)]
-    # distToCapsule = min(pelletDist) \
-    #   if (len(capsules) > 0 and len(pelletDist) > 0) else 100009
+    pelletDist = [self.getMazeDistance(currPosition, c) for c in capsules
+                  if self.getMazeDistance(currPosition, c) <= self.getMazeDistance(gameState.getAgentPosition(self.teamMate), c)]
+    distToCapsule = min(pelletDist) \
+      if (len(capsules) > 0 and len(pelletDist) > 0) else 100009
 
     # if (enemyDistance != 100000 and distToCapsule <= smallBorderDistance) or (enemyDistance == 100000):
     #   if distToCapsule < 100009:
@@ -476,7 +499,9 @@ class Alpha(ReflexCaptureAgent):
     needsToEnter = currPosition[0] <= entry[0] if self.red else currPosition[0] >= entry[0]
     needsToEnter = needsToEnter and not gameState.getAgentState(self.index).isPacman #
     features['upper'] = self.getMazeDistance(currPosition, entry) if needsToEnter else 0
-    features['borderDistance'] = smallBorderDistance
+    if enemyDistance < 100000 and distToCapsule <= smallBorderDistance:
+      power = True
+    features['borderDistance'] = smallBorderDistance if not power else distToCapsule
     # features['powerPelletDistance'] = distToCapsule
 # Distance to power pellet or amount of food remaining
     return features
@@ -592,6 +617,10 @@ class Beta(ReflexCaptureAgent):
     prevPosition = gameState.getAgentPosition(self.index)
     needsToEnter = currPosition[0] <= entry[0] if self.red else currPosition[0] >= entry[0]
     needsToEnter = needsToEnter and not gameState.getAgentState(self.index).isPacman
+    pelletDist = [self.getMazeDistance(currPosition, c) for c in capsules
+                  if self.getMazeDistance(currPosition, c) <= self.getMazeDistance(gameState.getAgentPosition(self.teamMate), c)]
+    distToCapsule = min(pelletDist) \
+      if (len(capsules) > 0 and len(pelletDist) > 0) else 100009
     #################################################################
     # print("Width: {}".format(gameState.data.layout.width))
     # if needsToEnter == False:
@@ -599,8 +628,11 @@ class Beta(ReflexCaptureAgent):
     #     print("(WRONG) position: {}".format(prevPosition))
     # print needsToEnter, if needsToEnter is False, print it if printing false when enemy territory, WRONG
     ####################################################################
+    power = False
     features['lower'] = self.getMazeDistance(currPosition, entry) if needsToEnter else 0
-    features['borderDistance'] = smallBorderDistance
+    if enemyDistance < 100000 and distToCapsule <= smallBorderDistance:
+      power = True
+    features['borderDistance'] = smallBorderDistance if not power else distToCapsule
     # features['powerPelletDistance'] = distToCapsule
     return features
 
